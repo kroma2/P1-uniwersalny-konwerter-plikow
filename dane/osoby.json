@@ -1,0 +1,24 @@
+{
+  "kolumny": [
+    "imię",
+    "miasto",
+    "uwagi"
+  ],
+  "wiersze": [
+    {
+      "imię": "Zosia",
+      "miasto": "Łódź",
+      "uwagi": "uczennica"
+    },
+    {
+      "imię": "Jan",
+      "miasto": "Kraków",
+      "uwagi": ""
+    },
+    {
+      "imię": "Michał",
+      "miasto": "Gdańsk",
+      "uwagi": "w trakcie"
+    }
+  ]
+}
