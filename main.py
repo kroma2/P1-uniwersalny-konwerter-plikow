@@ -1,4 +1,4 @@
-"""Uruchamia zarejestrowane konwersje z wiersza poleceń. Bez interfejsu graficznego."""
+"""Uruchamia konwersje z wiersza poleceń albo, bez argumentów, okno programu."""
 
 import argparse
 import sys
@@ -26,7 +26,7 @@ def _opisz_srodowisko() -> str:
 
 def zbuduj_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Uniwersalny konwerter plików. Kamień milowy 2: CSV, JSON, TXT, DOCX i PDF."
+        description="Uniwersalny konwerter plików. Bez argumentów otwiera okno."
     )
     parser.add_argument("zrodlo", nargs="?", type=Path, help="Plik wejściowy")
     parser.add_argument("format", nargs="?", help="Format wynikowy, np. json, csv, docx, pdf")
@@ -71,4 +71,9 @@ def main(argumenty: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    if len(sys.argv) == 1:
+        from gui import uruchom
+
+        uruchom()
+    else:
+        raise SystemExit(main())
