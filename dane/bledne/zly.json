@@ -1,0 +1,4 @@
+{
+  "kolumny": ["imię", "miasto"],
+  "wiersze": [
+    {"imię": "Zosia", "miasto": "Łódź"},

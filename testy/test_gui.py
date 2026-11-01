@@ -1,4 +1,4 @@
-"""Testy okna: formaty zależne od pliku, blokada pary i pytanie o nadpisanie."""
+"""Testy okna: formaty zależne od pliku, blokada pary, pytanie o nadpisanie i błędy."""
 
 import json
 import sys
@@ -46,6 +46,9 @@ class TestOkno(unittest.TestCase):
             time.sleep(0.02)
         self.okno.update()
 
+    def _zablokowany(self) -> bool:
+        return self.okno.przycisk_konwertuj.instate(["disabled"])
+
     def test_formaty_zaleza_od_rozszerzenia(self):
         self.okno.ustaw_plik(DANE / "osoby.csv")
         self.assertEqual(self.okno.formaty_widoczne, (".json",))
@@ -53,6 +56,18 @@ class TestOkno(unittest.TestCase):
         self.assertEqual(self.okno.formaty_widoczne, (".csv",))
         self.okno.ustaw_plik(DANE / "przyklad.txt")
         self.assertEqual(self.okno.formaty_widoczne, (".docx",))
+        self.okno.ustaw_plik(DANE / "przyklad.docx")
+        self.assertEqual(self.okno.formaty_widoczne, (".pdf", ".txt"))
+        self.okno.ustaw_plik(DANE / "przyklad.odt")
+        self.assertEqual(self.okno.formaty_widoczne, (".pdf",))
+
+    def test_przycisk_czeka_na_wszystkie_wybory(self):
+        self.assertTrue(self._zablokowany())
+        self.okno.ustaw_plik(DANE / "osoby.csv")
+        self.assertTrue(self._zablokowany())
+        with tempfile.TemporaryDirectory() as tmp:
+            self.okno.ustaw_katalog(Path(tmp))
+            self.assertFalse(self._zablokowany())
 
     def test_nieobslugiwany_plik_nie_daje_formatu(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -60,36 +75,48 @@ class TestOkno(unittest.TestCase):
             obcy.write_bytes(b"nie dokument")
             self.okno.ustaw_plik(obcy)
             self.okno.ustaw_katalog(Path(tmp))
-        self.assertEqual(self.okno.formaty_widoczne, ())
-        self.assertTrue(self.okno.przycisk_konwertuj.instate(["disabled"]))
-        self.okno.konwertuj()
+            self.assertEqual(self.okno.formaty_widoczne, ())
+            self.assertTrue(self._zablokowany())
+            with patch("gui.wykonaj") as wykonaj:
+                self.okno.konwertuj()
+            wykonaj.assert_not_called()
         self.assertFalse(self.okno._pracuje)
         self.assertIn("nie zostanie uruchomiona", self.okno.status.get())
 
-    def test_konwersja_csv_i_odmowa_nadpisania(self):
+    def test_konwersja_csv_i_pytanie_o_nadpisanie(self):
         with tempfile.TemporaryDirectory() as tmp:
             katalog = Path(tmp)
             self.okno.ustaw_plik(DANE / "osoby.csv")
             self.okno.ustaw_katalog(katalog)
-            self.assertFalse(self.okno.przycisk_konwertuj.instate(["disabled"]))
             self.okno.konwertuj()
             self._czekaj()
             wynik = katalog / "osoby.json"
-            self.assertTrue(wynik.is_file())
             self.assertEqual(json.loads(wynik.read_text(encoding="utf-8"))["wiersze"][0]["miasto"], "Łódź")
-            self.assertTrue(any(rodzaj == "info" for rodzaj, _args in self.dialogi))
+            self.assertIn(("info", ("Gotowe", f"Zapisano plik:\n{wynik}")), self.dialogi)
 
+            wynik.write_text("STARY", encoding="utf-8")
             self.okno.pytanie_nadpisania = self._nie
             self.okno.konwertuj()
             self.assertFalse(self.okno._pracuje)
             self.assertIn("bez zmian", self.okno.status.get())
-            self.assertEqual(json.loads(wynik.read_text(encoding="utf-8"))["wiersze"][0]["miasto"], "Łódź")
+            self.assertEqual(wynik.read_text(encoding="utf-8"), "STARY")
 
-            wynik.write_text("STARY", encoding="utf-8")
             self.okno.pytanie_nadpisania = self._tak
             self.okno.konwertuj()
             self._czekaj()
             self.assertEqual(json.loads(wynik.read_text(encoding="utf-8"))["wiersze"][0]["imię"], "Zosia")
+
+    def test_bledny_plik_pokazuje_komunikat(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.okno.ustaw_plik(DANE / "bledne" / "zly.json")
+            self.okno.ustaw_katalog(Path(tmp))
+            self.okno.konwertuj()
+            self._czekaj()
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+        rodzaje = [rodzaj for rodzaj, _args in self.dialogi]
+        self.assertEqual(rodzaje, ["blad"])
+        self.assertIn("Niepoprawny JSON", self.okno.status.get())
+        self.assertFalse(self._zablokowany())
 
     def test_watek_oddaje_sterowanie_oknu(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,8 +134,11 @@ class TestOkno(unittest.TestCase):
                 self.assertTrue(wystartowal.wait(2))
                 self.okno.update()
                 self.assertIn("Trwa konwersja", self.okno.status.get())
+                self.assertTrue(self._zablokowany())
+                self.assertTrue(self.okno.przycisk_pliku.instate(["disabled"]))
                 self._czekaj()
             self.assertIn("Zapisano", self.okno.status.get())
+            self.assertFalse(self.okno.przycisk_pliku.instate(["disabled"]))
 
 
 if __name__ == "__main__":

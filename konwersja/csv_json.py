@@ -4,14 +4,15 @@ Przyjęta struktura JSON to obiekt z dwoma kluczami:
 - kolumny: lista nazw kolumn w kolejności z nagłówka CSV,
 - wiersze: lista obiektów; klucze pochodzą z nagłówka, brak wartości to pusty napis.
 
-Kodowanie plików to UTF-8. Przy odczycie CSV dopuszczalny jest znacznik BOM.
+Kodowanie plików to UTF-8. Przy odczycie dopuszczalny jest znacznik BOM.
 """
 
 import csv
 import json
 from pathlib import Path
 
-from konwersja.rejestr import konwerter, przygotuj_wynik
+from konwersja.rejestr import konwerter
+from konwersja.walidacja import przygotuj_wynik
 
 
 def _odczytaj_csv(zrodlo: Path) -> tuple[list[str], list[dict[str, str]]]:
@@ -23,18 +24,23 @@ def _odczytaj_csv(zrodlo: Path) -> tuple[list[str], list[dict[str, str]]]:
                     "Plik CSV nie zawiera nagłówków. Dodaj wiersz z nazwami kolumn."
                 )
             kolumny = list(czytnik.fieldnames)
-            if any(not isinstance(nazwa, str) or nazwa == "" for nazwa in kolumny):
+            if any(nazwa == "" for nazwa in kolumny):
                 raise ValueError(
                     "Nagłówek CSV zawiera pustą nazwę kolumny. Uzupełnij nagłówki."
                 )
+            if len(set(kolumny)) != len(kolumny):
+                raise ValueError(
+                    "Nagłówek CSV zawiera powtórzoną nazwę kolumny. Nadaj kolumnom różne nazwy."
+                )
             wiersze = []
             for wiersz in czytnik:
+                if None in wiersz:
+                    raise ValueError(
+                        f"Wiersz {czytnik.line_num} ma więcej pól niż nagłówek. "
+                        "Popraw separatory albo dodaj brakujące kolumny."
+                    )
                 wiersze.append(
-                    {
-                        klucz: "" if wartosc is None else wartosc
-                        for klucz, wartosc in wiersz.items()
-                        if isinstance(klucz, str)
-                    }
+                    {klucz: "" if wartosc is None else wartosc for klucz, wartosc in wiersz.items()}
                 )
     except UnicodeDecodeError as blad:
         raise ValueError(
@@ -81,7 +87,22 @@ def _odczytaj_json(zrodlo: Path) -> tuple[list[str], list[dict]]:
         raise ValueError("Pole 'kolumny' musi być niepustą listą niepustych napisów.")
     if not isinstance(wiersze, list) or not all(isinstance(wiersz, dict) for wiersz in wiersze):
         raise ValueError("Pole 'wiersze' musi być listą obiektów.")
+    for numer, wiersz in enumerate(wiersze, start=1):
+        for nazwa in kolumny:
+            if isinstance(wiersz.get(nazwa), (dict, list)):
+                raise ValueError(
+                    f"Wiersz {numer}, kolumna '{nazwa}' zawiera obiekt albo listę. "
+                    "CSV przyjmuje tylko proste wartości: tekst, liczby, true/false lub null."
+                )
     return kolumny, wiersze
+
+
+def _komorka(wartosc: object) -> str:
+    if wartosc is None:
+        return ""
+    if isinstance(wartosc, bool):
+        return "true" if wartosc else "false"
+    return str(wartosc)
 
 
 @konwerter(".json", ".csv")
@@ -89,13 +110,8 @@ def json_na_csv(zrodlo: Path, katalog: Path) -> Path:
     cel = przygotuj_wynik(zrodlo, katalog, ".json", ".csv")
     kolumny, wiersze = _odczytaj_json(zrodlo)
     with cel.open("w", encoding="utf-8", newline="") as plik:
-        writer = csv.DictWriter(plik, fieldnames=kolumny, extrasaction="ignore")
-        writer.writeheader()
+        writer = csv.writer(plik)
+        writer.writerow(kolumny)
         for wiersz in wiersze:
-            writer.writerow(
-                {
-                    nazwa: "" if wiersz.get(nazwa) is None else wiersz.get(nazwa, "")
-                    for nazwa in kolumny
-                }
-            )
+            writer.writerow([_komorka(wiersz.get(nazwa)) for nazwa in kolumny])
     return cel

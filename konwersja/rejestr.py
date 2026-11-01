@@ -1,8 +1,14 @@
 """Rejestr kierunków konwersji, oddzielony od sposobu uruchomienia."""
 
+import logging
+import os
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
+
+log = logging.getLogger(__name__)
 
 Konwerter = Callable[[Path, Path], Path]
 REJESTR: dict[tuple[str, str], Konwerter] = {}
@@ -43,6 +49,9 @@ class ZlecenieKonwersji:
     def klucz(self) -> tuple[str, str]:
         return (self.zrodlo.suffix.lower(), _format(self.format_docelowy))
 
+    def plik_wynikowy(self) -> Path:
+        return self.katalog / f"{self.zrodlo.stem}{self.klucz()[1]}"
+
     def sprawdz(self) -> None:
         if not self.zrodlo.is_file():
             raise FileNotFoundError(
@@ -51,6 +60,10 @@ class ZlecenieKonwersji:
         if not self.katalog.is_dir():
             raise NotADirectoryError(
                 f"Brak katalogu wynikowego: {self.katalog}. Utwórz go i uruchom polecenie ponownie."
+            )
+        if not os.access(self.katalog, os.W_OK):
+            raise PermissionError(
+                f"Brak uprawnień do zapisu w katalogu: {self.katalog}. Wybierz inny katalog."
             )
         klucz = self.klucz()
         if klucz not in REJESTR:
@@ -64,36 +77,41 @@ class ZlecenieKonwersji:
             )
 
 
-def wykonaj(zlecenie: ZlecenieKonwersji) -> Path:
-    zlecenie.sprawdz()
-    return REJESTR[zlecenie.klucz()](zlecenie.zrodlo, zlecenie.katalog)
-
-
-def przygotuj_wynik(
-    zrodlo: Path,
-    katalog: Path,
-    oczekiwane_wejscie: str,
-    rozszerzenie_wyniku: str,
-) -> Path:
-    """Sprawdza plik i katalog oraz odmawia nadpisania istniejącego wyniku."""
-    if not zrodlo.is_file():
-        raise FileNotFoundError(
-            f"Brak pliku wejściowego: {zrodlo}. Wskaż istniejący plik."
-        )
-    if zrodlo.suffix.lower() != oczekiwane_wejscie:
-        otrzymane = zrodlo.suffix or "bez rozszerzenia"
-        raise ValueError(
-            f"Oczekiwano pliku {oczekiwane_wejscie}, otrzymano {otrzymane}. "
-            "Wybierz zgodną parę formatów."
-        )
-    if not katalog.is_dir():
-        raise NotADirectoryError(
-            f"Brak katalogu wynikowego: {katalog}. Utwórz go i uruchom polecenie ponownie."
-        )
-    cel = katalog / f"{zrodlo.stem}{rozszerzenie_wyniku}"
-    if cel.exists():
-        raise FileExistsError(
-            f"Plik wynikowy już istnieje: {cel}. "
-            "Program nie nadpisuje wyników. Usuń ten plik albo wskaż inny katalog."
-        )
+def _zastap(funkcja: Konwerter, zlecenie: ZlecenieKonwersji, cel: Path) -> Path:
+    """Tworzy wynik obok starego i podmienia go dopiero po udanej konwersji."""
+    with TemporaryDirectory(dir=zlecenie.katalog, prefix=".konwersja-") as tymczasowy:
+        nowy = funkcja(zlecenie.zrodlo, Path(tymczasowy))
+        os.replace(nowy, cel)
     return cel
+
+
+def wykonaj(zlecenie: ZlecenieKonwersji, nadpisz: bool = False) -> Path:
+    """Uruchamia konwerter pary. Istniejący wynik jest zastępowany tylko przy nadpisz=True."""
+    poczatek = time.perf_counter()
+    opis = f"{zlecenie.zrodlo} -> {zlecenie.format_docelowy}"
+    try:
+        zlecenie.sprawdz()
+        funkcja = REJESTR[zlecenie.klucz()]
+        cel = zlecenie.plik_wynikowy()
+        if nadpisz and cel.exists():
+            wynik = _zastap(funkcja, zlecenie, cel)
+        else:
+            wynik = funkcja(zlecenie.zrodlo, zlecenie.katalog)
+    except PermissionError as blad:
+        if blad.filename is None:
+            log.warning("Nieudana konwersja %s: %s", opis, blad)
+            raise
+        komunikat = (
+            f"Brak dostępu do pliku: {blad.filename}. "
+            "Zamknij go w innym programie albo wybierz inny katalog."
+        )
+        log.warning("Nieudana konwersja %s: %s", opis, komunikat)
+        raise PermissionError(komunikat) from blad
+    except (OSError, ValueError, RuntimeError) as blad:
+        log.warning("Nieudana konwersja %s: %s", opis, blad)
+        raise
+    except Exception:
+        log.exception("Nieoczekiwany błąd konwersji %s", opis)
+        raise
+    log.info("Zapisano %s w %.2f s", wynik, time.perf_counter() - poczatek)
+    return wynik

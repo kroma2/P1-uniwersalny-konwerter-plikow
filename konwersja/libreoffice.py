@@ -1,4 +1,4 @@
-"""Konwersja DOCX → PDF programem LibreOffice.
+"""Konwersje DOCX → PDF i ODT → PDF programem LibreOffice.
 
 Narzędzie jest uruchamiane listą argumentów, z shell=False. Sukces procesu
 (returncode == 0) nie wystarcza: wynik musi być nowym, niepustym plikiem PDF.
@@ -9,12 +9,13 @@ dopiero potem. Dzięki temu stary PDF nie zostanie uznany za nowy wynik.
 import os
 import shutil
 import subprocess
-import zipfile
+from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import quote
 
-from konwersja.rejestr import konwerter, przygotuj_wynik
+from konwersja.rejestr import konwerter
+from konwersja.walidacja import przygotuj_wynik, sprawdz_docx, sprawdz_odt
 
 LIMIT_CZASU_DOMYSLNY = 60
 _nadpisany_program: str | None = None
@@ -54,7 +55,7 @@ def znajdz_libreoffice(jawna_sciezka: str | None = None) -> str:
     if znalezione:
         return znalezione
 
-    for wzorzec in (
+    for kandydat in (
         Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
         / "LibreOffice"
         / "program"
@@ -68,8 +69,8 @@ def znajdz_libreoffice(jawna_sciezka: str | None = None) -> str:
         Path("/usr/bin/libreoffice"),
         Path("/usr/bin/soffice"),
     ):
-        if wzorzec.is_file():
-            return str(wzorzec)
+        if kandydat.is_file():
+            return str(kandydat)
 
     raise RuntimeError(
         "Brak LibreOffice. Zainstaluj pakiet LibreOffice albo ustaw zmienną "
@@ -81,17 +82,6 @@ def znajdz_libreoffice(jawna_sciezka: str | None = None) -> str:
 def _uri_katalogu(katalog: Path) -> str:
     posix = katalog.resolve().as_posix()
     return "file:///" + quote(posix, safe="/:")
-
-
-def _czy_docx(sciezka: Path) -> bool:
-    if not zipfile.is_zipfile(sciezka):
-        return False
-    try:
-        with zipfile.ZipFile(sciezka) as archiwum:
-            nazwy = set(archiwum.namelist())
-    except zipfile.BadZipFile:
-        return False
-    return "[Content_Types].xml" in nazwy and "word/document.xml" in nazwy
 
 
 def wywolaj_proces(polecenie: list[str], limit_czasu: int) -> subprocess.CompletedProcess[str]:
@@ -147,15 +137,15 @@ def _konwersja_w_katalogu(
     cel = wynik / f"{zrodlo.stem}.pdf"
     if rezultat.returncode != 0:
         szczegoly = (rezultat.stderr or rezultat.stdout or "").strip()
-        komunikat = "LibreOffice zakończył się błędem"
+        komunikat = f"LibreOffice zakończył się błędem (kod {rezultat.returncode})"
         if szczegoly:
             komunikat += f": {szczegoly[:500]}"
-        komunikat += ". Sprawdź, czy plik DOCX otwiera się w edytorze."
+        komunikat += ". Sprawdź, czy dokument otwiera się w edytorze."
         raise RuntimeError(komunikat)
     if not cel.is_file() or cel.stat().st_size == 0 or not cel.read_bytes().startswith(b"%PDF"):
         raise RuntimeError(
             "LibreOffice zakończył się kodem 0, ale nie powstał niepusty plik PDF. "
-            "Zamknij otwarty LibreOffice i sprawdź, czy dokument DOCX nie jest uszkodzony."
+            "Zamknij otwarty LibreOffice i sprawdź, czy dokument nie jest uszkodzony."
         )
     return cel
 
@@ -167,32 +157,45 @@ def _kopiuj_bez_nadpisania(zrodlo: Path, cel: Path) -> None:
     except FileExistsError as blad:
         raise FileExistsError(
             f"Plik wynikowy już istnieje: {cel}. "
-            "Program nie nadpisuje wyników. Usuń ten plik albo wskaż inny katalog."
+            "Program nie nadpisuje wyników bez zgody. Usuń ten plik albo wskaż inny katalog."
         ) from blad
     except Exception:
         cel.unlink(missing_ok=True)
         raise
 
 
-@konwerter(".docx", ".pdf")
-def docx_na_pdf(zrodlo: Path, katalog: Path) -> Path:
-    return docx_na_pdf_z_programem(zrodlo, katalog)
-
-
-def docx_na_pdf_z_programem(
+def _do_pdf(
     zrodlo: Path,
     katalog: Path,
-    program: str | None = None,
-    limit_czasu: int = LIMIT_CZASU_DOMYSLNY,
+    wejscie: str,
+    sprawdz: Callable[[Path], None],
+    program: str | None,
+    limit_czasu: int,
 ) -> Path:
-    cel = przygotuj_wynik(zrodlo, katalog, ".docx", ".pdf")
-    if not _czy_docx(zrodlo):
-        raise ValueError(
-            "Plik nie jest poprawnym dokumentem DOCX. "
-            "Zmiana rozszerzenia nie tworzy dokumentu. Zapisz plik w edytorze jako DOCX."
-        )
+    cel = przygotuj_wynik(zrodlo, katalog, wejscie, ".pdf")
+    sprawdz(zrodlo)
     narzedzie = znajdz_libreoffice(program)
     with TemporaryDirectory(prefix="konwerter-pdf-") as tymczasowy:
         pdf = _konwersja_w_katalogu(zrodlo, Path(tymczasowy), narzedzie, limit_czasu)
         _kopiuj_bez_nadpisania(pdf, cel)
     return cel
+
+
+@konwerter(".docx", ".pdf")
+def docx_na_pdf(
+    zrodlo: Path,
+    katalog: Path,
+    program: str | None = None,
+    limit_czasu: int = LIMIT_CZASU_DOMYSLNY,
+) -> Path:
+    return _do_pdf(zrodlo, katalog, ".docx", sprawdz_docx, program, limit_czasu)
+
+
+@konwerter(".odt", ".pdf")
+def odt_na_pdf(
+    zrodlo: Path,
+    katalog: Path,
+    program: str | None = None,
+    limit_czasu: int = LIMIT_CZASU_DOMYSLNY,
+) -> Path:
+    return _do_pdf(zrodlo, katalog, ".odt", sprawdz_odt, program, limit_czasu)

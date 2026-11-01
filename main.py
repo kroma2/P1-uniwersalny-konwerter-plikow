@@ -1,19 +1,18 @@
 """Uruchamia konwersje z wiersza poleceń albo, bez argumentów, okno programu."""
 
 import argparse
+import importlib.metadata
 import sys
 from pathlib import Path
 
-from konwersja import zaladuj_konwertery
-from konwersja.docx_pdf import ustaw_program_libreoffice, znajdz_libreoffice
+from konwersja import konfiguruj_logi, zaladuj_konwertery
+from konwersja.libreoffice import ustaw_program_libreoffice, znajdz_libreoffice
 from konwersja.rejestr import ZlecenieKonwersji, pary, wykonaj
 
 
 def _opisz_srodowisko() -> str:
     linie = [f"Python {sys.version.split()[0]}"]
     try:
-        import importlib.metadata
-
         linie.append("python-docx " + importlib.metadata.version("python-docx"))
     except importlib.metadata.PackageNotFoundError:
         linie.append("python-docx: brak. Zainstaluj zależności: python -m pip install -r requirements.txt")
@@ -29,8 +28,13 @@ def zbuduj_parser() -> argparse.ArgumentParser:
         description="Uniwersalny konwerter plików. Bez argumentów otwiera okno."
     )
     parser.add_argument("zrodlo", nargs="?", type=Path, help="Plik wejściowy")
-    parser.add_argument("format", nargs="?", help="Format wynikowy, np. json, csv, docx, pdf")
+    parser.add_argument("format", nargs="?", help="Format wynikowy, np. json, csv, docx, txt, pdf")
     parser.add_argument("katalog", nargs="?", type=Path, help="Istniejący katalog na wynik")
+    parser.add_argument(
+        "--nadpisz",
+        action="store_true",
+        help="Zastąp istniejący plik wynikowy. Bez tej opcji program odmawia nadpisania.",
+    )
     parser.add_argument(
         "--program",
         help="Pełna ścieżka do soffice.com albo soffice. Nadpisuje LIBREOFFICE_PATH.",
@@ -62,7 +66,10 @@ def main(argumenty: list[str] | None = None) -> int:
         parser.error("Podaj plik, format i katalog albo użyj --macierz / --srodowisko.")
 
     try:
-        wynik = wykonaj(ZlecenieKonwersji(args.zrodlo, args.format, args.katalog))
+        wynik = wykonaj(
+            ZlecenieKonwersji(args.zrodlo, args.format, args.katalog),
+            nadpisz=args.nadpisz,
+        )
     except (OSError, ValueError, RuntimeError) as blad:
         print(f"Błąd: {blad}", file=sys.stderr)
         return 1
@@ -71,6 +78,7 @@ def main(argumenty: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    konfiguruj_logi()
     if len(sys.argv) == 1:
         from gui import uruchom
 

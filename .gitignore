@@ -2,4 +2,6 @@
 __pycache__/
 *.pyc
 wyniki/
-km2-oddanie.zip
+konwerter.log
+*.zip
+/*.pdf
