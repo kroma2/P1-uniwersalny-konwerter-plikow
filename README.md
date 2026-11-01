@@ -2,7 +2,7 @@
 
 Projekt 1 z przedmiotu Programowanie V. Aplikacja desktopowa w Pythonie i Tkinter/ttk: wybierasz plik, katalog zapisu i jeden z formatów dostępnych dla tego pliku, a program wykonuje konwersję i pokazuje wynik albo czytelny błąd. Te same konwersje można uruchomić z wiersza poleceń.
 
-Autor: Jakub. Projekt indywidualny, bez podziału pracy.
+Autor: Jakub Janicki. Projekt indywidualny, bez podziału pracy.
 
 ## Macierz formatów
 
@@ -179,11 +179,3 @@ Wygenerowany kod został uruchomiony i sprawdzony testami opisanymi w raporcie. 
 | Lab. 3, kamień milowy 2 | `4c0d844` | JSON → CSV, TXT → DOCX, DOCX → PDF przez LibreOffice, rejestr par, testy T1–T8. |
 | Lab. 4, kamień milowy 3 | `0113b44` | Okno Tkinter: formaty zależne od pliku, pytanie o nadpisanie, konwersja w wątku. |
 | Lab. 5, oddanie | kolejny commit | DOCX → TXT i ODT → PDF, wspólna walidacja, logowanie, bezpieczne nadpisywanie, obsługa braku `python-docx`, testy, README i raport. |
-
-## Oddanie
-
-Archiwum według zasad przedmiotu ma nazwę `Nazwisko_Imie_P1.zip`. Najprościej utworzyć je z ostatniego commita, bez środowiska `.venv` i plików tymczasowych:
-
-```powershell
-git archive -o Nazwisko_Imie_P1.zip HEAD
-```
