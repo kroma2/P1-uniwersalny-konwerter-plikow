@@ -5,15 +5,27 @@ Lista formatów pochodzi z rejestru, więc nowa para nie wymaga przebudowy tego 
 """
 
 import queue
+import sys
 import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from konwersja import PLIK_LOGU, konfiguruj_logi, zaladuj_konwertery
+from konwersja import konfiguruj_logi, zaladuj_konwertery
 from konwersja.rejestr import ZlecenieKonwersji, dostepne_formaty, pary, wykonaj
 
 KATALOG_PROJEKTU = Path(__file__).resolve().parent
+
+TLO = "#f3f5f9"
+KARTA = "#ffffff"
+TEKST = "#1f2937"
+SZARY = "#6b7280"
+AKCENT = "#2563eb"
+AKCENT_AKTYWNY = "#1d4ed8"
+AKCENT_WYLACZONY = "#a5b4fc"
+ZIELONY = "#15803d"
+CZERWONY = "#b91c1c"
+CZCIONKA = "Segoe UI"
 
 
 class OknoKonwertera(tk.Tk):
@@ -21,18 +33,20 @@ class OknoKonwertera(tk.Tk):
         super().__init__()
         zaladuj_konwertery()
         self.title("Konwerter plików")
-        self.minsize(560, 300)
+        self.minsize(620, 440)
         self.sciezka_pliku = tk.StringVar()
         self.sciezka_katalogu = tk.StringVar()
         self.format_docelowy = tk.StringVar()
         self.formaty_widoczne: tuple[str, ...] = ()
-        self.status = tk.StringVar(value="Wybierz plik, katalog zapisu i format wynikowy.")
+        self.status = tk.StringVar()
         self.pytanie_nadpisania = messagebox.askyesno
         self.informacja = messagebox.showinfo
         self.okno_bledu = messagebox.showerror
         self._pracuje = False
         self._wyniki: queue.Queue[tuple[str, Path | Exception]] = queue.Queue()
+        self._ustaw_styl()
         self._zbuduj()
+        self._pokaz("Wybierz plik, katalog zapisu i format wynikowy.")
         self._odswiez_stan()
         self._po_odbiorze: str | None = self.after(100, self._odbierz_wynik)
 
@@ -45,45 +59,110 @@ class OknoKonwertera(tk.Tk):
             self._po_odbiorze = None
         super().destroy()
 
+    def _ustaw_styl(self) -> None:
+        self.configure(background=TLO)
+        styl = ttk.Style(self)
+        styl.theme_use("clam")
+        styl.configure(".", font=(CZCIONKA, 10), background=TLO, foreground=TEKST)
+        styl.configure("Tytul.TLabel", font=(CZCIONKA, 18, "bold"))
+        styl.configure("Podtytul.TLabel", foreground=SZARY)
+        styl.configure("Karta.TFrame", background=KARTA)
+        styl.configure("Krok.TLabel", background=KARTA, font=(CZCIONKA, 10, "bold"))
+        styl.configure("TEntry", padding=6)
+        styl.map("TEntry", fieldbackground=[("readonly", "#f9fafb")])
+        styl.configure("TCombobox", padding=6)
+        styl.map("TCombobox", fieldbackground=[("readonly", "#f9fafb")])
+        styl.configure("TButton", padding=(12, 6))
+        styl.configure(
+            "Akcent.TButton",
+            background=AKCENT,
+            foreground="white",
+            borderwidth=0,
+            padding=(24, 10),
+            font=(CZCIONKA, 11, "bold"),
+        )
+        styl.map(
+            "Akcent.TButton",
+            background=[("disabled", AKCENT_WYLACZONY), ("active", AKCENT_AKTYWNY)],
+            foreground=[("disabled", "white")],
+        )
+        styl.configure(
+            "Akcent.Horizontal.TProgressbar",
+            background=AKCENT,
+            troughcolor="#e5e7eb",
+            bordercolor="#e5e7eb",
+            lightcolor=AKCENT,
+            darkcolor=AKCENT,
+        )
+        styl.configure("Info.TLabel", foreground=SZARY)
+        styl.configure("Sukces.TLabel", foreground=ZIELONY)
+        styl.configure("Blad.TLabel", foreground=CZERWONY)
+
     def _zbuduj(self) -> None:
-        ramka = ttk.Frame(self, padding=16)
-        ramka.grid(row=0, column=0, sticky="nsew")
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)
-        ramka.columnconfigure(1, weight=1)
+        ramka = ttk.Frame(self, padding=24)
+        ramka.pack(fill="both", expand=True)
 
-        ttk.Label(ramka, text="Plik wejściowy").grid(row=0, column=0, sticky="w", pady=4)
-        ttk.Entry(ramka, textvariable=self.sciezka_pliku, state="readonly").grid(
-            row=0, column=1, sticky="ew", padx=8
-        )
-        self.przycisk_pliku = ttk.Button(ramka, text="Wybierz", command=self.wybierz_plik)
-        self.przycisk_pliku.grid(row=0, column=2)
-
-        ttk.Label(ramka, text="Katalog zapisu").grid(row=1, column=0, sticky="w", pady=4)
-        ttk.Entry(ramka, textvariable=self.sciezka_katalogu, state="readonly").grid(
-            row=1, column=1, sticky="ew", padx=8
-        )
-        self.przycisk_katalogu = ttk.Button(ramka, text="Wybierz", command=self.wybierz_katalog)
-        self.przycisk_katalogu.grid(row=1, column=2)
-
-        ttk.Label(ramka, text="Format wynikowy").grid(row=2, column=0, sticky="w", pady=4)
-        self.lista_formatow = ttk.Combobox(
+        ttk.Label(ramka, text="Konwerter plików", style="Tytul.TLabel").pack(anchor="w")
+        formaty = sorted({rozszerzenie.lstrip(".").upper() for para in pary() for rozszerzenie in para})
+        ttk.Label(
             ramka,
-            textvariable=self.format_docelowy,
-            state="readonly",
-            width=18,
+            text="Obsługiwane formaty: " + ", ".join(formaty),
+            style="Podtytul.TLabel",
+        ).pack(anchor="w", pady=(2, 16))
+
+        karta = ttk.Frame(ramka, style="Karta.TFrame", padding=20)
+        karta.pack(fill="x")
+        karta.columnconfigure(0, weight=1)
+
+        self.przycisk_pliku = self._pole_wyboru(
+            karta, 0, "1. Plik wejściowy", self.sciezka_pliku, self.wybierz_plik
         )
-        self.lista_formatow.grid(row=2, column=1, sticky="w", padx=8)
+        self.przycisk_katalogu = self._pole_wyboru(
+            karta, 2, "2. Katalog zapisu", self.sciezka_katalogu, self.wybierz_katalog
+        )
+        ttk.Label(karta, text="3. Format wynikowy", style="Krok.TLabel").grid(
+            row=4, column=0, sticky="w", pady=(16, 6)
+        )
+        self.lista_formatow = ttk.Combobox(
+            karta, textvariable=self.format_docelowy, state="readonly", width=16
+        )
+        self.lista_formatow.grid(row=5, column=0, sticky="w")
         self.lista_formatow.bind("<<ComboboxSelected>>", lambda _zdarzenie: self._odswiez_stan())
 
-        self.przycisk_konwertuj = ttk.Button(ramka, text="Konwertuj", command=self.konwertuj)
-        self.przycisk_konwertuj.grid(row=3, column=0, sticky="w", pady=(12, 8))
-        self.postep = ttk.Progressbar(ramka, mode="indeterminate", length=200)
-        self.postep.grid(row=3, column=1, sticky="w", padx=8, pady=(12, 8))
-
-        ttk.Label(ramka, textvariable=self.status, wraplength=500, justify="left").grid(
-            row=4, column=0, columnspan=3, sticky="ew"
+        dol = ttk.Frame(ramka)
+        dol.pack(fill="x", pady=(20, 8))
+        self.przycisk_konwertuj = ttk.Button(
+            dol, text="Konwertuj", style="Akcent.TButton", command=self.konwertuj
         )
+        self.przycisk_konwertuj.pack(side="left")
+        self.postep = ttk.Progressbar(
+            dol, mode="indeterminate", length=180, style="Akcent.Horizontal.TProgressbar"
+        )
+
+        self.etykieta_stanu = ttk.Label(
+            ramka, textvariable=self.status, wraplength=560, justify="left"
+        )
+        self.etykieta_stanu.pack(anchor="w", fill="x")
+
+    def _pole_wyboru(self, karta, wiersz, tytul, zmienna, polecenie) -> ttk.Button:
+        ttk.Label(karta, text=tytul, style="Krok.TLabel").grid(
+            row=wiersz, column=0, sticky="w", pady=(16 if wiersz else 0, 6)
+        )
+        pole = ttk.Entry(karta, textvariable=zmienna, state="readonly")
+        pole.grid(row=wiersz + 1, column=0, sticky="ew")
+
+        def pokaz_koniec(*_):
+            pole.after_idle(pole.xview_moveto, 1)
+
+        zmienna.trace_add("write", pokaz_koniec)
+        pole.bind("<Configure>", pokaz_koniec)
+        przycisk = ttk.Button(karta, text="Wybierz…", command=polecenie)
+        przycisk.grid(row=wiersz + 1, column=1, padx=(10, 0))
+        return przycisk
+
+    def _pokaz(self, tekst: str, rodzaj: str = "Info") -> None:
+        self.status.set(tekst)
+        self.etykieta_stanu.configure(style=f"{rodzaj}.TLabel")
 
     def wybierz_plik(self) -> None:
         start = KATALOG_PROJEKTU / "dane"
@@ -113,10 +192,10 @@ class OknoKonwertera(tk.Tk):
         self.formaty_widoczne = tuple(formaty)
         if formaty:
             self.format_docelowy.set(formaty[0])
-            self.status.set("Dostępne formaty: " + ", ".join(formaty) + ".")
+            self._pokaz("Dostępne formaty: " + ", ".join(formaty) + ".")
         else:
             self.format_docelowy.set("")
-            self.status.set("Dla tego pliku nie ma konwersji. Wybierz inny plik.")
+            self._pokaz("Dla tego pliku nie ma konwersji. Wybierz inny plik.", "Blad")
         self._odswiez_stan()
 
     def ustaw_katalog(self, sciezka: Path) -> None:
@@ -163,17 +242,18 @@ class OknoKonwertera(tk.Tk):
             return
         zlecenie = self._wybrane()
         if zlecenie is None:
-            self.status.set("Uzupełnij plik, katalog i format. Niedozwolona para nie zostanie uruchomiona.")
+            self._pokaz("Uzupełnij plik, katalog i format. Niedozwolona para nie zostanie uruchomiona.", "Blad")
             return
         nadpisz = self._zapytaj_o_nadpisanie(zlecenie)
         if nadpisz is None:
-            self.status.set("Anulowano. Istniejący plik pozostał bez zmian.")
+            self._pokaz("Anulowano. Istniejący plik pozostał bez zmian.")
             return
 
         self._pracuje = True
         self._odswiez_stan()
+        self.postep.pack(side="left", padx=16)
         self.postep.start(10)
-        self.status.set("Trwa konwersja. Okno pozostaje aktywne.")
+        self._pokaz("Trwa konwersja. Okno pozostaje aktywne.")
 
         def praca() -> None:
             try:
@@ -191,10 +271,10 @@ class OknoKonwertera(tk.Tk):
                 rodzaj, wartosc = self._wyniki.get_nowait()
                 self._zakoncz_prace()
                 if rodzaj == "ok":
-                    self.status.set(f"Zapisano: {wartosc}")
+                    self._pokaz(f"Zapisano: {wartosc}", "Sukces")
                     self.informacja("Gotowe", f"Zapisano plik:\n{wartosc}", parent=self)
                 else:
-                    self.status.set(f"Błąd: {wartosc}")
+                    self._pokaz(f"Błąd: {wartosc}", "Blad")
                     self.okno_bledu("Nie udało się konwertować", self.status.get(), parent=self)
         except queue.Empty:
             pass
@@ -206,6 +286,7 @@ class OknoKonwertera(tk.Tk):
     def _zakoncz_prace(self) -> None:
         self._pracuje = False
         self.postep.stop()
+        self.postep.pack_forget()
         self._odswiez_stan()
 
 
@@ -215,8 +296,20 @@ def _filtry_plikow() -> list[tuple[str, str]]:
     return [("Obsługiwane pliki", wzor), ("Wszystkie pliki", "*.*")]
 
 
+def _ostry_tekst_w_windows() -> None:
+    """Bez tego Windows rozmywa okno Tk na ekranach ze skalowaniem powyżej 100%."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except (AttributeError, OSError):
+            pass
+
+
 def uruchom() -> None:
     konfiguruj_logi()
+    _ostry_tekst_w_windows()
     okno = OknoKonwertera()
     okno.mainloop()
 
