@@ -12,7 +12,7 @@ Autor: Jakub Janicki. Projekt indywidualny, bez podziału pracy.
 | A. dane strukturalne | `.json` | `.csv` | `csv`, `json` (biblioteka standardowa) | Przyjmowany jest tylko obiekt `{"kolumny": [...], "wiersze": [...]}`. Kolejność kolumn bierze się z listy `kolumny`, dodatkowe klucze wiersza są pomijane. `null` staje się pustą komórką, `true`/`false` są zapisywane małymi literami, a obiekt lub lista w komórce daje błąd. |
 | B. tekst i dokumenty | `.txt` | `.docx` | `python-docx` | Jedna linia to jeden akapit, pusta linia to pusty akapit, końcowy znak nowej linii nie dodaje akapitu. Brak nagłówków, list i stylów. |
 | B. tekst i dokumenty | `.docx` | `.txt` | `python-docx` | Każdy akapit treści głównej to jedna linia. Formatowanie, tabele, nagłówki i stopki strony oraz obrazy są pomijane. |
-| C. formaty biurowe | `.docx` | `.pdf` | LibreOffice, tryb `--headless` | Układ stron i fonty mogą się różnić od Worda. Makra i osadzone obiekty nie są obsługiwane. |
+| C. formaty biurowe | `.docx` | `.pdf` | LibreOffice, tryb `--headless` | Układ stron i fonty mogą się różnić od Worda. Makra i osadzone obiekty nie są obsługiwane. Otwarty LibreOffice może zablokować konwersję. |
 | C. formaty biurowe | `.odt` | `.pdf` | LibreOffice, tryb `--headless` | Jak wyżej. Plik musi być prawdziwym dokumentem Writer, nie innym plikiem z rozszerzeniem `.odt`. |
 
 Wszystkie pliki tekstowe są czytane i zapisywane w UTF-8. Przy odczycie dopuszczalny jest znacznik BOM. Konwersja z PDF do formatu edytowalnego nie jest obsługiwana.
@@ -110,8 +110,7 @@ Każda konwersja uruchomiona z okna albo z wiersza poleceń jest zapisywana w `k
 - Polecenie to lista argumentów, a wywołanie ma `shell=False`. Ścieżka ze spacjami jest jednym elementem listy, bez ręcznych cudzysłowów.
 - Limit czasu wynosi 60 sekund. Po jego przekroczeniu pojawia się komunikat zamiast zawieszenia programu.
 - Kod zakończenia różny od 0 jest błędem i trafia do komunikatu razem z treścią stderr.
-- Kod 0 nie wystarcza: musi powstać nowy, niepusty plik zaczynający się od `%PDF`.
-- Konwersja odbywa się w pustym katalogu tymczasowym z osobnym profilem użytkownika LibreOffice. Wynik jest kopiowany do katalogu docelowego dopiero na końcu.
+- Kod 0 nie wystarcza: musi powstać nowy, niepusty plik zaczynający się od `%PDF`. Przy błędzie niepełny plik jest usuwany.
 - Przed uruchomieniem program sprawdza, czy DOCX i ODT są prawdziwymi dokumentami. Zwykły tekst przemianowany na `.docx` nie dociera do LibreOffice.
 
 ## Struktura
@@ -125,7 +124,6 @@ Każda konwersja uruchomiona z okna albo z wiersza poleceń jest zapisywana w `k
 | `konwersja/csv_json.py` | CSV → JSON i JSON → CSV. |
 | `konwersja/txt_docx.py` | TXT → DOCX i DOCX → TXT. |
 | `konwersja/libreoffice.py` | DOCX → PDF i ODT → PDF, wyszukiwanie i bezpieczne uruchamianie LibreOffice. |
-| `testy/` | Testy automatyczne konwerterów, rejestru, procesu i okna. |
 | `dane/` | Dane wejściowe. |
 | `przyklady/` | Wyniki wszystkich sześciu kierunków uzyskane z plików z `dane/`. |
 | `raport-testow.md` | Raport testów z faktycznymi wynikami. |
@@ -146,17 +144,13 @@ Nowy kierunek to funkcja `(plik, katalog) -> Path` oznaczona dekoratorem `@konwe
 
 ## Testy
 
-```powershell
-python -m unittest discover -s testy -v
-```
-
-40 testów obejmuje wszystkie kierunki, błędne i uszkodzone pliki, brak LibreOffice i `python-docx`, kod zakończenia, limit czasu, listę argumentów, nadpisywanie, ścieżki ze spacjami, logowanie oraz zachowanie okna. Test rzeczywistej konwersji LibreOffice jest pomijany, gdy program nie jest zainstalowany. Wyniki i opis przypadków są w `raport-testow.md`.
+Przypadki z minimalnej macierzy i ich wyniki są opisane w `raport-testow.md`. Pliki wejściowe leżą w `dane/`.
 
 ## Źródła i biblioteki
 
 - Instrukcja projektu „Uniwersalny konwerter plików”, wersja 5 października 2026, oraz materiały do kamienia milowego 2.
 - [python-docx](https://python-docx.readthedocs.io/) (licencja MIT): tworzenie i odczyt dokumentów DOCX.
-- [LibreOffice, parametry uruchamiania](https://help.libreoffice.org/latest/en-US/text/shared/guide/start_parameters.html): `--headless`, `--convert-to`, `--outdir`, osobny profil użytkownika.
+- [LibreOffice, parametry uruchamiania](https://help.libreoffice.org/latest/en-US/text/shared/guide/start_parameters.html): `--headless`, `--convert-to`, `--outdir`.
 - [subprocess](https://docs.python.org/3/library/subprocess.html): `run()`, lista argumentów, kod zakończenia, limit czasu.
 - [tkinter.ttk](https://docs.python.org/3/library/tkinter.ttk.html) i [tkinter.filedialog](https://docs.python.org/3/library/dialog.html): okno, lista wyboru, okna wyboru pliku i katalogu.
 - [logging](https://docs.python.org/3/library/logging.html): dziennik konwersji.
@@ -167,9 +161,9 @@ Przy projekcie korzystałem z asystenta Claude (Anthropic) w edytorze Cursor. Za
 
 - szkic konwerterów JSON → CSV, TXT ↔ DOCX, DOCX → PDF i ODT → PDF oraz dopasowanie istniejącego CSV → JSON do rejestru,
 - szkic rejestru, walidacji, polityki nadpisywania, logowania i okna Tkinter z wątkiem roboczym,
-- propozycja testów automatycznych i struktury raportu oraz pomoc przy tym README.
+- propozycja struktury raportu oraz pomoc przy tym README.
 
-Wygenerowany kod został uruchomiony i sprawdzony testami opisanymi w raporcie. Wyniki w raporcie pochodzą z rzeczywistych uruchomień. W raporcie z kamienia milowego 2 omyłkowo podałem model Grok. Właściwym narzędziem był Claude.
+Wygenerowany kod został uruchomiony. Wyniki w raporcie pochodzą z rzeczywistych uruchomień. W raporcie z kamienia milowego 2 omyłkowo podałem model Grok. Właściwym narzędziem był Claude.
 
 ## Dziennik etapów
 
@@ -178,4 +172,4 @@ Wygenerowany kod został uruchomiony i sprawdzony testami opisanymi w raporcie. 
 | Lab. 2 | `f670baa` | CSV → JSON z zachowaniem nagłówków i UTF-8, dane przykładowe. |
 | Lab. 3, kamień milowy 2 | `4c0d844` | JSON → CSV, TXT → DOCX, DOCX → PDF przez LibreOffice, rejestr par, testy T1–T8. |
 | Lab. 4, kamień milowy 3 | `0113b44` | Okno Tkinter: formaty zależne od pliku, pytanie o nadpisanie, konwersja w wątku. |
-| Lab. 5, oddanie | kolejny commit | DOCX → TXT i ODT → PDF, wspólna walidacja, logowanie, bezpieczne nadpisywanie, obsługa braku `python-docx`, testy, README i raport. |
+| Lab. 5, oddanie | wersja końcowa | Sześć kierunków z trzech grup. Prostsze wywołanie LibreOffice i prostsze okno. Przypadki testowe są w raporcie z uruchomień ręcznych. |

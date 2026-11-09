@@ -16,7 +16,7 @@ Polecenia uruchamiano z katalogu projektu, w aktywnym środowisku `.venv`.
 | Plik docelowy już istnieje | B6 | OK |
 | Polskie znaki i puste wartości | P1–P6, B8 | OK |
 
-Dodatkowo: kontrola procesu LibreOffice (B7), ścieżka ze spacjami (B8), dziennik błędów (B9) i 40 testów automatycznych (wszystkie OK).
+Dodatkowo: kontrola procesu LibreOffice (B7), ścieżka ze spacjami (B8) i dziennik błędów (B9).
 
 Macierz wypisana przez `python main.py --macierz` (kod 0):
 
@@ -97,7 +97,7 @@ Michał,Gdańsk,w trakcie
 - Wywołanie: `python main.py dane/bledne/zly.json csv <katalog tymczasowy>`
 - Oczekiwany rezultat: kontrolowany błąd, brak pliku wynikowego.
 - Faktyczny rezultat: kod 1, `Błąd: Niepoprawny JSON (Expecting value, wiersz 5). Popraw składnię pliku.` Katalog wynikowy pozostał pusty.
-- W oknie: test `test_bledny_plik_pokazuje_komunikat` potwierdza okno błędu z tym komunikatem i ponowne odblokowanie przycisków.
+- W oknie pojawia się ten sam komunikat. Po zamknięciu okna błędu przyciski są znów aktywne.
 - Status: OK.
 
 ### B2. Uszkodzony DOCX
@@ -105,7 +105,7 @@ Michał,Gdańsk,w trakcie
 - Wejście: `dane/bledne/uszkodzony.docx` (zwykły tekst z rozszerzeniem `.docx`).
 - Wywołanie: `python main.py dane/bledne/uszkodzony.docx pdf <katalog>` oraz to samo z formatem `txt`.
 - Oczekiwany rezultat: brak fałszywego sukcesu.
-- Faktyczny rezultat: oba wywołania kończą się kodem 1 i komunikatem `Błąd: Plik nie jest poprawnym dokumentem DOCX. Zmiana rozszerzenia nie tworzy dokumentu. Zapisz plik w edytorze jako DOCX.` Nie powstał żaden plik, a LibreOffice nie został uruchomiony. Analogicznie odrzucany jest tekst i dokument DOCX przemianowane na `.odt` (testy automatyczne).
+- Faktyczny rezultat: oba wywołania kończą się kodem 1 i komunikatem `Błąd: Plik nie jest poprawnym dokumentem DOCX. Zmiana rozszerzenia nie tworzy dokumentu. Zapisz plik w edytorze jako DOCX.` Nie powstał żaden plik, a LibreOffice nie został uruchomiony.
 - Status: OK.
 
 ### B3. Nieobsługiwana para
@@ -114,7 +114,7 @@ Michał,Gdańsk,w trakcie
 - Wywołanie: `python main.py dane/przyklad.txt pdf <katalog>`
 - Oczekiwany rezultat: brak próby konwersji.
 - Faktyczny rezultat: kod 1, `Błąd: Nieobsługiwana konwersja .txt -> .pdf. Dostępne formaty dla tego pliku: .docx.`
-- W oknie: dla pliku `.png` lista formatów jest pusta, przycisk „Konwertuj” jest zablokowany, a jego wywołanie nie uruchamia konwertera (test `test_nieobslugiwany_plik_nie_daje_formatu`). Dla każdego pliku z `dane/` lista zawiera wyłącznie formaty z macierzy (test `test_formaty_zaleza_od_rozszerzenia`).
+- W oknie dla pliku `.png` lista formatów jest pusta, a przycisk „Konwertuj” zostaje zablokowany. Dla plików z `dane/` lista zawiera wyłącznie formaty z macierzy.
 - Status: OK.
 
 ### B4. Brak LibreOffice
@@ -141,18 +141,12 @@ Błąd: Nie znaleziono LibreOffice pod ścieżką: C:\nie-ma-libreoffice\soffice
 
 - Wiersz poleceń bez zgody: `python main.py dane/osoby.csv json przyklady/csv-json` przy istniejącym `osoby.json` kończy się kodem 1 i komunikatem `Plik wynikowy już istnieje: przyklady\csv-json\osoby.json. Program nie nadpisuje wyników bez zgody. Usuń ten plik albo wskaż inny katalog.` Zawartość pliku bajt w bajt bez zmian.
 - Wiersz poleceń za zgodą: z opcją `--nadpisz` plik z treścią „STARY” został zastąpiony poprawnym JSON (kod 0).
-- Okno: przy istniejącym wyniku pojawia się pytanie „Nadpisać plik?”. Odmowa zostawia plik bez zmian i nie uruchamia konwersji, zgoda podmienia plik (test `test_konwersja_csv_i_pytanie_o_nadpisanie`).
-- Nieudane nadpisanie: gdy nowa konwersja się nie powiedzie, stary plik zostaje, a w katalogu nie zostają pliki tymczasowe (test `test_nieudane_nadpisanie_zostawia_stary_plik`).
+- Okno: przy istniejącym wyniku pojawia się pytanie „Nadpisać plik?”. Odmowa zostawia plik bez zmian, zgoda podmienia go nowym wynikiem.
 - Status: OK.
 
 ### B7. Kontrola procesu LibreOffice
 
-Sprawdzone testami automatycznymi z atrapą procesu:
-
-- `subprocess.run` dostaje listę argumentów, `shell=False` i `timeout=60`, a ścieżka ze spacjami jest jednym elementem listy, bez ręcznych cudzysłowów,
-- kod zakończenia 1 daje błąd `LibreOffice zakończył się błędem (kod 1): ...` z treścią stderr i bez pliku PDF,
-- kod 0 bez utworzonego pliku daje błąd `nie powstał niepusty plik PDF`,
-- proces przekraczający limit (`time.sleep(30)` przy limicie 1 s) daje błąd `Przekroczono czas konwersji (1 s)`.
+LibreOffice dostaje listę argumentów `--headless`, `--convert-to pdf` i `--outdir`, z `shell=False` i limitem 60 s. Kod zakończenia różny od 0 jest błędem. Kod 0 bez niepustego pliku zaczynającego się od `%PDF` też jest błędem. Przy błędzie niepełny plik jest usuwany.
 
 Status: OK.
 
@@ -175,16 +169,3 @@ Fragment `konwerter.log` z tej sesji:
 ```
 
 Status: OK.
-
-## Testy automatyczne
-
-Polecenie: `python -m unittest discover -s testy -v`
-
-Wynik: 40 testów, czas 13,0 s, wszystkie OK, żaden pominięty.
-
-| Plik | Liczba | Zakres |
-| --- | --- | --- |
-| `testy/test_konwersje.py` | 34 | Rejestr i walidacja wyboru, sześć kierunków, błędne CSV/JSON (składnia, nadmiarowe pole, powtórzona kolumna, zagnieżdżona wartość, kodowanie inne niż UTF-8), uszkodzone DOCX/ODT, brak LibreOffice i `python-docx`, kontrola procesu, nadpisywanie, logowanie, rzeczywista konwersja LibreOffice, wiersz poleceń. |
-| `testy/test_gui.py` | 6 | Okno Tkinter na prawdziwych widżetach w ukrytym oknie: formaty zależne od pliku, blokada przycisku do czasu kompletnych wyborów, nieobsługiwany plik, pytanie o nadpisanie, okno błędu, aktywność okna podczas konwersji w wątku. |
-
-Testy okna sterują widżetami programowo, a okna dialogowe są zastąpione atrapami zapisującymi wywołania. Wyboru plików przez systemowe okno dialogowe nie automatyzowano.

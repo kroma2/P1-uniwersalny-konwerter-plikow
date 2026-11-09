@@ -1,9 +1,7 @@
 """Konwersje DOCX → PDF i ODT → PDF programem LibreOffice.
 
-Narzędzie jest uruchamiane listą argumentów, z shell=False. Sukces procesu
-(returncode == 0) nie wystarcza: wynik musi być nowym, niepustym plikiem PDF.
-Konwersja idzie do pustego katalogu tymczasowego, a gotowy plik jest kopiowany
-dopiero potem. Dzięki temu stary PDF nie zostanie uznany za nowy wynik.
+Narzędzie jest uruchamiane listą argumentów, z shell=False. Kod zakończenia 0
+nie wystarcza: w katalogu musi powstać niepusty plik zaczynający się od %PDF.
 """
 
 import os
@@ -11,8 +9,6 @@ import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from urllib.parse import quote
 
 from konwersja.rejestr import konwerter
 from konwersja.walidacja import przygotuj_wynik, sprawdz_docx, sprawdz_odt
@@ -79,11 +75,6 @@ def znajdz_libreoffice(jawna_sciezka: str | None = None) -> str:
     )
 
 
-def _uri_katalogu(katalog: Path) -> str:
-    posix = katalog.resolve().as_posix()
-    return "file:///" + quote(posix, safe="/:")
-
-
 def wywolaj_proces(polecenie: list[str], limit_czasu: int) -> subprocess.CompletedProcess[str]:
     """Uruchamia proces bez powłoki i tłumaczy typowe awarie na czytelny komunikat."""
     try:
@@ -111,59 +102,6 @@ def wywolaj_proces(polecenie: list[str], limit_czasu: int) -> subprocess.Complet
         ) from blad
 
 
-def _konwersja_w_katalogu(
-    zrodlo: Path,
-    katalog_roboczy: Path,
-    program: str,
-    limit_czasu: int,
-) -> Path:
-    profil = katalog_roboczy / "profil"
-    wynik = katalog_roboczy / "wynik"
-    profil.mkdir()
-    wynik.mkdir()
-    polecenie = [
-        program,
-        f"-env:UserInstallation={_uri_katalogu(profil)}",
-        "--headless",
-        "--norestore",
-        "--nolockcheck",
-        "--convert-to",
-        "pdf",
-        "--outdir",
-        str(wynik),
-        str(zrodlo.resolve()),
-    ]
-    rezultat = wywolaj_proces(polecenie, limit_czasu)
-    cel = wynik / f"{zrodlo.stem}.pdf"
-    if rezultat.returncode != 0:
-        szczegoly = (rezultat.stderr or rezultat.stdout or "").strip()
-        komunikat = f"LibreOffice zakończył się błędem (kod {rezultat.returncode})"
-        if szczegoly:
-            komunikat += f": {szczegoly[:500]}"
-        komunikat += ". Sprawdź, czy dokument otwiera się w edytorze."
-        raise RuntimeError(komunikat)
-    if not cel.is_file() or cel.stat().st_size == 0 or not cel.read_bytes().startswith(b"%PDF"):
-        raise RuntimeError(
-            "LibreOffice zakończył się kodem 0, ale nie powstał niepusty plik PDF. "
-            "Zamknij otwarty LibreOffice i sprawdź, czy dokument nie jest uszkodzony."
-        )
-    return cel
-
-
-def _kopiuj_bez_nadpisania(zrodlo: Path, cel: Path) -> None:
-    try:
-        with zrodlo.open("rb") as wejscie, cel.open("xb") as wyjscie:
-            shutil.copyfileobj(wejscie, wyjscie)
-    except FileExistsError as blad:
-        raise FileExistsError(
-            f"Plik wynikowy już istnieje: {cel}. "
-            "Program nie nadpisuje wyników bez zgody. Usuń ten plik albo wskaż inny katalog."
-        ) from blad
-    except Exception:
-        cel.unlink(missing_ok=True)
-        raise
-
-
 def _do_pdf(
     zrodlo: Path,
     katalog: Path,
@@ -174,11 +112,33 @@ def _do_pdf(
 ) -> Path:
     cel = przygotuj_wynik(zrodlo, katalog, wejscie, ".pdf")
     sprawdz(zrodlo)
-    narzedzie = znajdz_libreoffice(program)
-    with TemporaryDirectory(prefix="konwerter-pdf-") as tymczasowy:
-        pdf = _konwersja_w_katalogu(zrodlo, Path(tymczasowy), narzedzie, limit_czasu)
-        _kopiuj_bez_nadpisania(pdf, cel)
-    return cel
+    polecenie = [
+        znajdz_libreoffice(program),
+        "--headless",
+        "--convert-to",
+        "pdf",
+        "--outdir",
+        str(katalog),
+        str(zrodlo.resolve()),
+    ]
+    try:
+        rezultat = wywolaj_proces(polecenie, limit_czasu)
+        if rezultat.returncode != 0:
+            szczegoly = (rezultat.stderr or rezultat.stdout or "").strip()
+            komunikat = f"LibreOffice zakończył się błędem (kod {rezultat.returncode})"
+            if szczegoly:
+                komunikat += f": {szczegoly[:500]}"
+            komunikat += ". Sprawdź, czy dokument otwiera się w edytorze."
+            raise RuntimeError(komunikat)
+        if not cel.is_file() or cel.stat().st_size == 0 or not cel.read_bytes().startswith(b"%PDF"):
+            raise RuntimeError(
+                "LibreOffice zakończył się kodem 0, ale nie powstał niepusty plik PDF. "
+                "Zamknij otwarty LibreOffice i sprawdź, czy dokument nie jest uszkodzony."
+            )
+        return cel
+    except Exception:
+        cel.unlink(missing_ok=True)
+        raise
 
 
 @konwerter(".docx", ".pdf")

@@ -5,7 +5,6 @@ Lista formatów pochodzi z rejestru, więc nowa para nie wymaga przebudowy tego 
 """
 
 import queue
-import sys
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -15,17 +14,6 @@ from konwersja import konfiguruj_logi, zaladuj_konwertery
 from konwersja.rejestr import ZlecenieKonwersji, dostepne_formaty, pary, wykonaj
 
 KATALOG_PROJEKTU = Path(__file__).resolve().parent
-
-TLO = "#f3f5f9"
-KARTA = "#ffffff"
-TEKST = "#1f2937"
-SZARY = "#6b7280"
-AKCENT = "#2563eb"
-AKCENT_AKTYWNY = "#1d4ed8"
-AKCENT_WYLACZONY = "#a5b4fc"
-ZIELONY = "#15803d"
-CZERWONY = "#b91c1c"
-CZCIONKA = "Segoe UI"
 
 
 class OknoKonwertera(tk.Tk):
@@ -60,43 +48,10 @@ class OknoKonwertera(tk.Tk):
         super().destroy()
 
     def _ustaw_styl(self) -> None:
-        self.configure(background=TLO)
         styl = ttk.Style(self)
-        styl.theme_use("clam")
-        styl.configure(".", font=(CZCIONKA, 10), background=TLO, foreground=TEKST)
-        styl.configure("Tytul.TLabel", font=(CZCIONKA, 18, "bold"))
-        styl.configure("Podtytul.TLabel", foreground=SZARY)
-        styl.configure("Karta.TFrame", background=KARTA)
-        styl.configure("Krok.TLabel", background=KARTA, font=(CZCIONKA, 10, "bold"))
-        styl.configure("TEntry", padding=6)
-        styl.map("TEntry", fieldbackground=[("readonly", "#f9fafb")])
-        styl.configure("TCombobox", padding=6)
-        styl.map("TCombobox", fieldbackground=[("readonly", "#f9fafb")])
-        styl.configure("TButton", padding=(12, 6))
-        styl.configure(
-            "Akcent.TButton",
-            background=AKCENT,
-            foreground="white",
-            borderwidth=0,
-            padding=(24, 10),
-            font=(CZCIONKA, 11, "bold"),
-        )
-        styl.map(
-            "Akcent.TButton",
-            background=[("disabled", AKCENT_WYLACZONY), ("active", AKCENT_AKTYWNY)],
-            foreground=[("disabled", "white")],
-        )
-        styl.configure(
-            "Akcent.Horizontal.TProgressbar",
-            background=AKCENT,
-            troughcolor="#e5e7eb",
-            bordercolor="#e5e7eb",
-            lightcolor=AKCENT,
-            darkcolor=AKCENT,
-        )
-        styl.configure("Info.TLabel", foreground=SZARY)
-        styl.configure("Sukces.TLabel", foreground=ZIELONY)
-        styl.configure("Blad.TLabel", foreground=CZERWONY)
+        styl.configure("Tytul.TLabel", font=("Segoe UI", 16, "bold"))
+        styl.configure("Sukces.TLabel", foreground="#15803d")
+        styl.configure("Blad.TLabel", foreground="#b91c1c")
 
     def _zbuduj(self) -> None:
         ramka = ttk.Frame(self, padding=24)
@@ -104,13 +59,11 @@ class OknoKonwertera(tk.Tk):
 
         ttk.Label(ramka, text="Konwerter plików", style="Tytul.TLabel").pack(anchor="w")
         formaty = sorted({rozszerzenie.lstrip(".").upper() for para in pary() for rozszerzenie in para})
-        ttk.Label(
-            ramka,
-            text="Obsługiwane formaty: " + ", ".join(formaty),
-            style="Podtytul.TLabel",
-        ).pack(anchor="w", pady=(2, 16))
+        ttk.Label(ramka, text="Obsługiwane formaty: " + ", ".join(formaty)).pack(
+            anchor="w", pady=(2, 16)
+        )
 
-        karta = ttk.Frame(ramka, style="Karta.TFrame", padding=20)
+        karta = ttk.Frame(ramka, padding=4)
         karta.pack(fill="x")
         karta.columnconfigure(0, weight=1)
 
@@ -120,7 +73,7 @@ class OknoKonwertera(tk.Tk):
         self.przycisk_katalogu = self._pole_wyboru(
             karta, 2, "2. Katalog zapisu", self.sciezka_katalogu, self.wybierz_katalog
         )
-        ttk.Label(karta, text="3. Format wynikowy", style="Krok.TLabel").grid(
+        ttk.Label(karta, text="3. Format wynikowy").grid(
             row=4, column=0, sticky="w", pady=(16, 6)
         )
         self.lista_formatow = ttk.Combobox(
@@ -131,13 +84,9 @@ class OknoKonwertera(tk.Tk):
 
         dol = ttk.Frame(ramka)
         dol.pack(fill="x", pady=(20, 8))
-        self.przycisk_konwertuj = ttk.Button(
-            dol, text="Konwertuj", style="Akcent.TButton", command=self.konwertuj
-        )
+        self.przycisk_konwertuj = ttk.Button(dol, text="Konwertuj", command=self.konwertuj)
         self.przycisk_konwertuj.pack(side="left")
-        self.postep = ttk.Progressbar(
-            dol, mode="indeterminate", length=180, style="Akcent.Horizontal.TProgressbar"
-        )
+        self.postep = ttk.Progressbar(dol, mode="indeterminate", length=180)
 
         self.etykieta_stanu = ttk.Label(
             ramka, textvariable=self.status, wraplength=560, justify="left"
@@ -145,24 +94,19 @@ class OknoKonwertera(tk.Tk):
         self.etykieta_stanu.pack(anchor="w", fill="x")
 
     def _pole_wyboru(self, karta, wiersz, tytul, zmienna, polecenie) -> ttk.Button:
-        ttk.Label(karta, text=tytul, style="Krok.TLabel").grid(
+        ttk.Label(karta, text=tytul).grid(
             row=wiersz, column=0, sticky="w", pady=(16 if wiersz else 0, 6)
         )
         pole = ttk.Entry(karta, textvariable=zmienna, state="readonly")
         pole.grid(row=wiersz + 1, column=0, sticky="ew")
-
-        def pokaz_koniec(*_):
-            pole.after_idle(pole.xview_moveto, 1)
-
-        zmienna.trace_add("write", pokaz_koniec)
-        pole.bind("<Configure>", pokaz_koniec)
         przycisk = ttk.Button(karta, text="Wybierz…", command=polecenie)
         przycisk.grid(row=wiersz + 1, column=1, padx=(10, 0))
         return przycisk
 
-    def _pokaz(self, tekst: str, rodzaj: str = "Info") -> None:
+    def _pokaz(self, tekst: str, rodzaj: str = "TLabel") -> None:
         self.status.set(tekst)
-        self.etykieta_stanu.configure(style=f"{rodzaj}.TLabel")
+        styl = rodzaj if rodzaj == "TLabel" else f"{rodzaj}.TLabel"
+        self.etykieta_stanu.configure(style=styl)
 
     def wybierz_plik(self) -> None:
         start = KATALOG_PROJEKTU / "dane"
@@ -296,20 +240,8 @@ def _filtry_plikow() -> list[tuple[str, str]]:
     return [("Obsługiwane pliki", wzor), ("Wszystkie pliki", "*.*")]
 
 
-def _ostry_tekst_w_windows() -> None:
-    """Bez tego Windows rozmywa okno Tk na ekranach ze skalowaniem powyżej 100%."""
-    if sys.platform == "win32":
-        try:
-            import ctypes
-
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        except (AttributeError, OSError):
-            pass
-
-
 def uruchom() -> None:
     konfiguruj_logi()
-    _ostry_tekst_w_windows()
     okno = OknoKonwertera()
     okno.mainloop()
 
