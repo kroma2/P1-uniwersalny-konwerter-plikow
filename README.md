@@ -157,19 +157,19 @@ Przypadki z minimalnej macierzy i ich wyniki są opisane w `raport-testow.md`. P
 
 ## Narzędzia AI
 
-Przy projekcie korzystałem z asystenta Claude (Anthropic) w edytorze Cursor. Zakres pomocy:
+Przy projekcie korzystałem z asystenta Claude (Anthropic) oraz Grok w edytorze Cursor. Zakres pomocy:
 
 - szkic konwerterów JSON → CSV, TXT ↔ DOCX, DOCX → PDF i ODT → PDF oraz dopasowanie istniejącego CSV → JSON do rejestru,
 - szkic rejestru, walidacji, polityki nadpisywania, logowania i okna Tkinter z wątkiem roboczym,
 - propozycja struktury raportu oraz pomoc przy tym README.
 
-Wygenerowany kod został uruchomiony. Wyniki w raporcie pochodzą z rzeczywistych uruchomień. W raporcie z kamienia milowego 2 omyłkowo podałem model Grok. Właściwym narzędziem był Claude.
+Wygenerowany kod został uruchomiony. Wyniki w raporcie pochodzą z rzeczywistych uruchomień.
 
 ## Dziennik etapów
 
-| Etap | Commit | Zakres |
-| --- | --- | --- |
-| Lab. 2 | `f670baa` | CSV → JSON z zachowaniem nagłówków i UTF-8, dane przykładowe. |
-| Lab. 3, kamień milowy 2 | `4c0d844` | JSON → CSV, TXT → DOCX, DOCX → PDF przez LibreOffice, rejestr par, testy T1–T8. |
-| Lab. 4, kamień milowy 3 | `0113b44` | Okno Tkinter: formaty zależne od pliku, pytanie o nadpisanie, konwersja w wątku. |
-| Lab. 5, oddanie | wersja końcowa | Sześć kierunków z trzech grup. Prostsze wywołanie LibreOffice i prostsze okno. Przypadki testowe są w raporcie z uruchomień ręcznych. |
+| Etap                    | Commit         | Zakres                                                                                                                                |
+| ----------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Lab. 2                  | `f670baa`      | CSV → JSON z zachowaniem nagłówków i UTF-8, dane przykładowe.                                                                         |
+| Lab. 3, kamień milowy 2 | `4c0d844`      | JSON → CSV, TXT → DOCX, DOCX → PDF przez LibreOffice, rejestr par, testy T1–T8.                                                       |
+| Lab. 4, kamień milowy 3 | `0113b44c`     | Okno Tkinter: formaty zależne od pliku, pytanie o nadpisanie, konwersja w wątku.                                                      |
+| Lab. 5, oddanie         | wersja końcowa | Sześć kierunków z trzech grup. Prostsze wywołanie LibreOffice i prostsze okno. Przypadki testowe są w raporcie z uruchomień ręcznych. |
