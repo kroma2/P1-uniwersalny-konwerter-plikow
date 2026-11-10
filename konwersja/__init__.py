@@ -9,7 +9,7 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 
 def zaladuj_konwertery() -> None:
-    from konwersja import csv_json, libreoffice, txt_docx  # noqa: F401
+    from konwersja import csv_json, libreoffice, txt_docx
 
 
 def konfiguruj_logi(plik: Path = PLIK_LOGU) -> None:

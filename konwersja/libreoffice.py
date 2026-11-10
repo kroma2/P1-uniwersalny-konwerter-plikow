@@ -7,7 +7,6 @@ nie wystarcza: w katalogu musi powstać niepusty plik zaczynający się od %PDF.
 import os
 import shutil
 import subprocess
-from collections.abc import Callable
 from pathlib import Path
 
 from konwersja.rejestr import konwerter
@@ -75,7 +74,7 @@ def znajdz_libreoffice(jawna_sciezka: str | None = None) -> str:
     )
 
 
-def wywolaj_proces(polecenie: list[str], limit_czasu: int) -> subprocess.CompletedProcess[str]:
+def wywolaj_proces(polecenie: list[str], limit_czasu: int):
     """Uruchamia proces bez powłoki i tłumaczy typowe awarie na czytelny komunikat."""
     try:
         return subprocess.run(
@@ -106,7 +105,7 @@ def _do_pdf(
     zrodlo: Path,
     katalog: Path,
     wejscie: str,
-    sprawdz: Callable[[Path], None],
+    sprawdz,
     program: str | None,
     limit_czasu: int,
 ) -> Path:

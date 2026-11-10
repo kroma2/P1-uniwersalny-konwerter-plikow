@@ -3,21 +3,19 @@
 import logging
 import os
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 log = logging.getLogger(__name__)
 
-Konwerter = Callable[[Path, Path], Path]
-REJESTR: dict[tuple[str, str], Konwerter] = {}
+REJESTR: dict[tuple[str, str]] = {}
 
 
 def konwerter(wejscie: str, wyjscie: str):
     """Rejestruje funkcję jako jedyny konwerter pary rozszerzeń."""
 
-    def zarejestruj(funkcja: Konwerter) -> Konwerter:
+    def zarejestruj(funkcja):
         REJESTR[(wejscie.lower(), wyjscie.lower())] = funkcja
         return funkcja
 
@@ -77,7 +75,7 @@ class ZlecenieKonwersji:
             )
 
 
-def _zastap(funkcja: Konwerter, zlecenie: ZlecenieKonwersji, cel: Path) -> Path:
+def _zastap(funkcja, zlecenie: ZlecenieKonwersji, cel: Path) -> Path:
     """Tworzy wynik obok starego i podmienia go dopiero po udanej konwersji."""
     with TemporaryDirectory(dir=zlecenie.katalog, prefix=".konwersja-") as tymczasowy:
         nowy = funkcja(zlecenie.zrodlo, Path(tymczasowy))
